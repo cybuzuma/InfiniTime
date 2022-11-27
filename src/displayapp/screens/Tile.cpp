@@ -13,14 +13,26 @@ namespace {
   }
 
   void event_handler(lv_obj_t* obj, lv_event_t event) {
-    if (event != LV_EVENT_VALUE_CHANGED) {
-      return;
+    static bool longPress = false;
+    if (event == LV_EVENT_LONG_PRESSED) {
+      longPress = true;
     }
-
+    //NRF_LOG_INFO("Tiles Event %i", event);
     Tile* screen = static_cast<Tile*>(obj->user_data);
     auto* eventDataPtr = (uint32_t*) lv_event_get_data();
+    if (eventDataPtr == nullptr) {
+      return;
+    }
     uint32_t eventData = *eventDataPtr;
-    screen->OnValueChangedEvent(obj, eventData);
+    if (event == LV_EVENT_VALUE_CHANGED) {
+      if (longPress) {
+        screen->OnLongPressed(obj, eventData);
+      } else {
+        screen->OnValueChangedEvent(obj, eventData);
+      }
+      longPress = false;
+    }
+    return;
   }
 }
 
@@ -36,6 +48,8 @@ Tile::Tile(uint8_t screenID,
     dateTimeController {dateTimeController},
     pageIndicator(screenID, numScreens),
     statusIcons(batteryController, bleController) {
+
+  NRF_LOG_INFO("Tiles Ctor");
 
   settingsController.SetAppMenu(screenID);
 
@@ -78,6 +92,7 @@ Tile::Tile(uint8_t screenID,
 
   for (uint8_t i = 0; i < 6; i++) {
     lv_btnmatrix_set_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_CLICK_TRIG);
+    lv_btnmatrix_set_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_NO_REPEAT);
     if (applications[i].application == Apps::None) {
       lv_btnmatrix_set_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_DISABLED);
     }
@@ -92,6 +107,7 @@ Tile::Tile(uint8_t screenID,
 }
 
 Tile::~Tile() {
+  NRF_LOG_INFO("Tile Dtor");
   lv_task_del(taskUpdate);
   lv_obj_clean(lv_scr_act());
 }
@@ -99,6 +115,20 @@ Tile::~Tile() {
 void Tile::UpdateScreen() {
   lv_label_set_text(label_time, dateTimeController.FormattedTime().c_str());
   statusIcons.Update();
+}
+
+void Tile::OnLongPressed(lv_obj_t* obj, uint32_t buttonId) {
+  if (obj != btnm1) {
+    NRF_LOG_INFO("Wrong object");
+    return;
+  }
+
+  NRF_LOG_INFO("Tiles: App %i disabled", buttonId);
+  enabled[buttonId] = false;
+  if (buttonId > 2){
+    buttonId++;
+  }
+  btnmMap[buttonId] = "x";
 }
 
 void Tile::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {

@@ -2,14 +2,14 @@
 
 #include <array>
 #include <memory>
+#include <array>
 
 #include "displayapp/screens/Screen.h"
-#include "displayapp/screens/ScreenList.h"
 #include "components/datetime/DateTimeController.h"
 #include "components/settings/Settings.h"
 #include "components/battery/BatteryController.h"
 #include "displayapp/screens/Symbols.h"
-#include "displayapp/screens/Tile.h"
+
 
 namespace Pinetime {
   namespace Applications {
@@ -22,38 +22,61 @@ namespace Pinetime {
                                  Pinetime::Controllers::Ble& bleController,
                                  Controllers::DateTime& dateTimeController);
         ~ApplicationList() override;
+
         bool OnTouchEvent(TouchEvents event) override;
 
+        void UpdateScreen();
+        void OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId);
+        void OnLongPressed(lv_obj_t* obj, uint32_t buttonId);
+
       private:
-        auto CreateScreenList() const;
-        std::unique_ptr<Screen> CreateScreen(unsigned int screenNum) const;
+        struct Applications {
+          const char* icon;
+          bool enabled;
+          Pinetime::Applications::Apps application;
+        };
 
         Controllers::Settings& settingsController;
         Pinetime::Controllers::Battery& batteryController;
         Pinetime::Controllers::Ble& bleController;
         Controllers::DateTime& dateTimeController;
 
-        static constexpr int appsPerScreen = 6;
+        lv_task_t* taskUpdate;
 
-        // Increment this when more space is needed
-        static constexpr int nScreens = 2;
+        lv_obj_t* label_time;
+        lv_point_t pageIndicatorBasePoints[2];
+        lv_point_t pageIndicatorPoints[2];
+        lv_obj_t* pageIndicatorBase;
+        lv_obj_t* pageIndicator;
+        lv_obj_t* btnm1;
 
-        static constexpr std::array<Tile::Applications, appsPerScreen * nScreens> applications {{
-          {Symbols::stopWatch, Apps::StopWatch},
-          {Symbols::clock, Apps::Alarm},
-          {Symbols::hourGlass, Apps::Timer},
-          {Symbols::shoe, Apps::Steps},
-          {Symbols::heartBeat, Apps::HeartRate},
-          {Symbols::music, Apps::Music},
+        BatteryIcon batteryIcon;
 
-          {Symbols::paintbrush, Apps::Paint},
-          {Symbols::paddle, Apps::Paddle},
-          {"2", Apps::Twos},
-          {Symbols::chartLine, Apps::Motion},
-          {Symbols::drum, Apps::Metronome},
-          {Symbols::map, Apps::Navigation},
-        }};
-        ScreenList<nScreens> screens;
+        const char* btnmMap[8];
+
+        std::array<Applications, 12> applications {{
+          {Symbols::stopWatch, true, Apps::StopWatch},
+          {Symbols::music, true, Apps::None},
+          {Symbols::map, true, Apps::Navigation},
+          {Symbols::shoe, true, Apps::Steps},
+          {Symbols::heartBeat, true, Apps::HeartRate},
+          {Symbols::hourGlass, true, Apps::Timer},
+          {Symbols::paintbrush, true, Apps::Paint},
+          {Symbols::paddle, true, Apps::Paddle},
+          {"2", true, Apps::Twos},
+          {Symbols::chartLine, true, Apps::Motion},
+          {Symbols::drum, true, Apps::Metronome},
+          {Symbols::clock, true, Apps::Alarm}}
+        };
+
+        void updateButtonMap();
+        void enableButtons();
+
+        bool isShown(const Applications &app) const;
+
+        Applications * getAppOnButton(uint8_t buttonNr);
+
+        uint8_t getStartAppIndex(uint8_t page);
       };
     }
   }

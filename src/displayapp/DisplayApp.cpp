@@ -22,7 +22,6 @@
 #include "displayapp/screens/Navigation.h"
 #include "displayapp/screens/Notifications.h"
 #include "displayapp/screens/SystemInfo.h"
-#include "displayapp/screens/Tile.h"
 #include "displayapp/screens/Twos.h"
 #include "displayapp/screens/FlashLight.h"
 #include "displayapp/screens/BatteryInfo.h"
@@ -302,6 +301,7 @@ void DisplayApp::ReturnApp(Apps app, DisplayApp::FullRefreshDirections direction
 }
 
 void DisplayApp::LoadApp(Apps app, DisplayApp::FullRefreshDirections direction) {
+  NRF_LOG_INFO("Load App");
   touchHandler.CancelTap();
   ApplyBrightness();
 
