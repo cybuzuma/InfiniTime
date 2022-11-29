@@ -144,6 +144,17 @@ namespace Pinetime {
         return appMenu;
       };
 
+      void SetAppDisabled(uint64_t bitmap) {
+        if (settings.appsDisabled != bitmap) {
+          settingsChanged = true;
+        }
+        settings.appsDisabled = bitmap;
+      };
+
+      uint64_t GetAppDisabled() const {
+        return settings.appsDisabled;
+      };
+
       void SetSettingsMenu(uint8_t menu) {
         settingsMenu = menu;
       };
@@ -273,6 +284,8 @@ namespace Pinetime {
         std::bitset<4> wakeUpMode {0};
         uint16_t shakeWakeThreshold = 150;
         Controllers::BrightnessController::Levels brightLevel = Controllers::BrightnessController::Levels::Medium;
+
+        uint64_t appsDisabled = 0;
       };
 
       SettingsData settings;

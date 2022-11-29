@@ -301,7 +301,6 @@ void DisplayApp::ReturnApp(Apps app, DisplayApp::FullRefreshDirections direction
 }
 
 void DisplayApp::LoadApp(Apps app, DisplayApp::FullRefreshDirections direction) {
-  NRF_LOG_INFO("Load App");
   touchHandler.CancelTap();
   ApplyBrightness();
 
@@ -314,8 +313,11 @@ void DisplayApp::LoadApp(Apps app, DisplayApp::FullRefreshDirections direction) 
   switch (app) {
     case Apps::Launcher:
       currentScreen =
-        std::make_unique<Screens::ApplicationList>(this, settingsController, batteryController, bleController, dateTimeController);
+        std::make_unique<Screens::ApplicationList>(this, settingsController, batteryController, bleController, dateTimeController, motorController);
       ReturnApp(Apps::Clock, FullRefreshDirections::Down, TouchEvents::SwipeDown);
+      break;
+    case Apps::LauncherAddApp:
+      currentScreen = std::make_unique<Screens::ApplicationList>(this, settingsController, batteryController, dateTimeController, motorController, true);
       break;
     case Apps::None:
     case Apps::Clock:

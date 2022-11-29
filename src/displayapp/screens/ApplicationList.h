@@ -20,26 +20,34 @@ namespace Pinetime {
                                  Pinetime::Controllers::Settings& settingsController,
                                  Pinetime::Controllers::Battery& batteryController,
                                  Pinetime::Controllers::Ble& bleController,
-                                 Controllers::DateTime& dateTimeController);
+                                 Controllers::DateTime& dateTimeController,
+                                 Controllers::MotorController& motorController,
+                                 bool addingApps = false);
         ~ApplicationList() override;
 
         bool OnTouchEvent(TouchEvents event) override;
 
         void UpdateScreen();
         void OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId);
-        void OnLongPressed(lv_obj_t* obj, uint32_t buttonId);
+        void OnLongHold();
 
       private:
         struct Applications {
           const char* icon;
-          bool enabled;
           Pinetime::Applications::Apps application;
         };
+
+        bool longPressed {false};
+
+        bool addingApps;
+
+        uint8_t page;
 
         Controllers::Settings& settingsController;
         Pinetime::Controllers::Battery& batteryController;
         Pinetime::Controllers::Ble& bleController;
         Controllers::DateTime& dateTimeController;
+        Controllers::MotorController& motorController;
 
         lv_task_t* taskUpdate;
 
@@ -54,27 +62,31 @@ namespace Pinetime {
 
         const char* btnmMap[8];
 
-        std::array<Applications, 12> applications {{
-          {Symbols::stopWatch, true, Apps::StopWatch},
-          {Symbols::music, true, Apps::None},
-          {Symbols::map, true, Apps::Navigation},
-          {Symbols::shoe, true, Apps::Steps},
-          {Symbols::heartBeat, true, Apps::HeartRate},
-          {Symbols::hourGlass, true, Apps::Timer},
-          {Symbols::paintbrush, true, Apps::Paint},
-          {Symbols::paddle, true, Apps::Paddle},
-          {"2", true, Apps::Twos},
-          {Symbols::chartLine, true, Apps::Motion},
-          {Symbols::drum, true, Apps::Metronome},
-          {Symbols::clock, true, Apps::Alarm}}
+        //TODO can we leave out the 13?
+        std::array<Applications, 13> applications {{
+          {Symbols::stopWatch, Apps::StopWatch},
+          {Symbols::music, Apps::Music},
+          {Symbols::map, Apps::Navigation},
+          {Symbols::shoe, Apps::Steps},
+          {Symbols::heartBeat, Apps::HeartRate},
+          {Symbols::hourGlass, Apps::Timer},
+          {Symbols::paintbrush, Apps::Paint},
+          {Symbols::paddle, Apps::Paddle},
+          {"2", Apps::Twos},
+          {Symbols::chartLine, Apps::Motion},
+          {Symbols::drum, Apps::Metronome},
+          {Symbols::clock, Apps::Alarm},
+          {"+", Apps::LauncherAddApp}}
         };
 
         void updateButtonMap();
         void enableButtons();
 
-        bool isShown(const Applications &app) const;
+        bool isShown(uint8_t id) const;
 
-        Applications * getAppOnButton(uint8_t buttonNr);
+        uint8_t getAppIdOnButton(uint8_t buttonNr);
+
+        void disableApp(uint8_t id);
 
         uint8_t getStartAppIndex(uint8_t page);
       };

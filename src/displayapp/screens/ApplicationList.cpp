@@ -12,24 +12,18 @@ namespace {
   }
 
   void event_handler(lv_obj_t* obj, lv_event_t event) {
-    static bool longPress = false;
-    if (event == LV_EVENT_LONG_PRESSED) {
-      longPress = true;
-    }
-    //NRF_LOG_INFO("Applist Event %i", event);
     ApplicationList* screen = static_cast<ApplicationList*>(obj->user_data);
+    if (event == LV_EVENT_LONG_PRESSED) {
+      screen->OnLongHold();
+    }
+    // NRF_LOG_INFO("Applist Event %i", event);
     auto* eventDataPtr = (uint32_t*) lv_event_get_data();
     if (eventDataPtr == nullptr) {
       return;
     }
     uint32_t eventData = *eventDataPtr;
     if (event == LV_EVENT_VALUE_CHANGED) {
-      if (longPress) {
-        screen->OnLongPressed(obj, eventData);
-      } else {
-        screen->OnValueChangedEvent(obj, eventData);
-      }
-      longPress = false;
+      screen->OnValueChangedEvent(obj, eventData);
     }
     return;
   }
@@ -39,14 +33,16 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
                                  Pinetime::Controllers::Settings& settingsController,
                                  Pinetime::Controllers::Battery& batteryController,
                                  Pinetime::Controllers::Ble& bleController,
-                                 Controllers::DateTime& dateTimeController)
+                                 Controllers::DateTime& dateTimeController,
+                                 Controllers::MotorController& motorController,
+                                 bool addingApps)
   : Screen(app),
     settingsController {settingsController},
     batteryController {batteryController},
     bleController {bleController},
     dateTimeController {dateTimeController},
-    dateTimeController {dateTimeController}{
-  NRF_LOG_INFO("Applist Ctor");
+    motorController {motorController},
+    addingApps {addingApps} {
 
   settingsController.SetAppMenu(0);
 
@@ -59,8 +55,10 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   batteryIcon.Create(lv_scr_act());
   lv_obj_align(batteryIcon.GetObject(), nullptr, LV_ALIGN_IN_TOP_RIGHT, -8, 0);
 
-  uint8_t numScreens = 3;
-  uint8_t screenID = 1;
+  uint8_t numScreens = 2;
+  if (!addingApps) {
+    page = settingsController.GetAppMenu();
+  }
 
   if (numScreens > 1) {
     pageIndicatorBasePoints[0].x = LV_HOR_RES - 1;
@@ -74,7 +72,7 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
     lv_line_set_points(pageIndicatorBase, pageIndicatorBasePoints, 2);
 
     const uint16_t indicatorSize = LV_VER_RES / numScreens;
-    const uint16_t indicatorPos = indicatorSize * screenID;
+    const uint16_t indicatorPos = indicatorSize * page;
 
     pageIndicatorPoints[0].x = LV_HOR_RES - 1;
     pageIndicatorPoints[0].y = indicatorPos;
@@ -112,13 +110,13 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   UpdateScreen();
 }
 
-uint8_t ApplicationList::getStartAppIndex(uint8_t page){
+uint8_t ApplicationList::getStartAppIndex(uint8_t page) {
   uint8_t enabled = 0;
   uint8_t appIndex = 0;
 
-  //TODO: check to not overrung applist
-  while(!(enabled >= page * 6) || (!isShown(applications[appIndex]))){
-    if (!isShown(applications[appIndex])){
+  // TODO: check to not overrun applist
+  while (!(enabled >= page * 6) || (!isShown(appIndex))) {
+    if (!isShown(appIndex)) {
       appIndex++;
       continue;
     }
@@ -129,47 +127,46 @@ uint8_t ApplicationList::getStartAppIndex(uint8_t page){
 }
 
 void ApplicationList::updateButtonMap() {
-  uint8_t page = 1;
   uint8_t btIndex = 0;
   uint8_t appIndex = getStartAppIndex(page);
-  
 
-  //need to create 6 buttons + 1 newline =7
+  // need to create 6 buttons + 1 newline =7
   while (btIndex < 7) {
-    //Third button is newline
-    if (btIndex == 3){
+    // Third button is newline
+    if (btIndex == 3) {
       btnmMap[btIndex++] = "\n";
       continue;
     }
-    //we ran out of apps, fill with empty buttons
-    if (appIndex >= applications.size()){
+    // we ran out of apps, fill with empty buttons
+    if (appIndex >= applications.size()) {
       btnmMap[btIndex++] = " ";
       continue;
     }
-    //Skip disabled or invalid apps
-    if (!isShown(applications[appIndex])) {
+    // Skip disabled or invalid apps
+    if (!isShown(appIndex)) {
       appIndex++;
       continue;
     }
-    //set Icon
+    // set Icon
     btnmMap[btIndex] = applications[appIndex].icon;
     btIndex++;
     appIndex++;
   }
-  //close buttonMap
+  // close buttonMap
   btnmMap[btIndex] = "";
 }
 
 void ApplicationList::enableButtons() {
+
   for (uint8_t i = 0; i < 7; i++) {
+    lv_btnmatrix_clear_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_DISABLED);
     lv_btnmatrix_set_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_CLICK_TRIG);
     lv_btnmatrix_set_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_NO_REPEAT);
-    if (btnmMap[i] == " ") {
+    if (strcmp(btnmMap[i], " ") == 0) {
       uint8_t buttonId = i;
       if (i > 3) {
         buttonId--;
       }
-      NRF_LOG_INFO("Applist: Disabled map %i", buttonId);
       lv_btnmatrix_set_btn_ctrl(btnm1, buttonId, LV_BTNMATRIX_CTRL_DISABLED);
     }
   }
@@ -183,58 +180,97 @@ void ApplicationList::UpdateScreen() {
 ApplicationList::~ApplicationList() {
   lv_task_del(taskUpdate);
   lv_obj_clean(lv_scr_act());
+  settingsController.SaveSettings();
 }
 
 bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
+  switch (event) {
+    case TouchEvents::SwipeDown:
+      if (page > 0) {
+        page--;
+      } else {
+        return false;
+      }
+      if (!addingApps) {
+        settingsController.SetAppMenu(page);
+      }
+      app->SetFullRefresh(DisplayApp::FullRefreshDirections::Down);
+      updateButtonMap();
+      enableButtons();
+      return true;
+    case TouchEvents::SwipeUp:
+      if (page + 1 < 2) {
+        page++;
+      } else {
+        return false;
+      }
+      if (!addingApps) {
+        settingsController.SetAppMenu(page);
+      }
+      app->SetFullRefresh(DisplayApp::FullRefreshDirections::Up);
+      updateButtonMap();
+      enableButtons();
+      return true;
+  }
   // return screens.OnTouchEvent(event);
   return false;
 }
 
-bool ApplicationList::isShown(const ApplicationList::Applications &app) const {
-  return (app.application != Apps::None) && (app.enabled);
+bool ApplicationList::isShown(uint8_t id) const {
+  uint64_t currentState = settingsController.GetAppDisabled();
+  bool disabled = (currentState >> id) & 1;
+  if (addingApps) {
+    disabled = !disabled;
+  }
+  return (applications[id].application != Apps::None) && (!disabled);
 }
 
-ApplicationList::Applications * ApplicationList::getAppOnButton(uint8_t buttonNr){
-  uint8_t page = 1;
+uint8_t ApplicationList::getAppIdOnButton(uint8_t buttonNr) {
   uint8_t enabledAppNr = 0;
-  for (uint8_t i =  getStartAppIndex(page); i < applications.size(); i++){
-    if (!isShown(applications[i])){
-      NRF_LOG_INFO("Applist: Ignoring %i", i);
+  for (uint8_t i = getStartAppIndex(page); i < applications.size(); i++) {
+    if (!isShown(i)) {
       continue;
     }
-    if ( enabledAppNr == buttonNr){
-      NRF_LOG_INFO("Applist: found App %i", i);
-      return &applications[i];
+    if (enabledAppNr == buttonNr) {
+      return i;
     }
     enabledAppNr++;
   }
-  return nullptr;
+  return 0;
 }
 
+void ApplicationList::OnLongHold() {
+  longPressed = true;
+  motorController.RunForDuration(50);
+}
 
-void ApplicationList::OnLongPressed(lv_obj_t* obj, uint32_t buttonId) {
-  if (obj != btnm1) {
-    NRF_LOG_INFO("Wrong object");
+void ApplicationList::disableApp(uint8_t id) {
+  if (applications[id].application == Apps::LauncherAddApp){
     return;
   }
+  uint64_t currentState = settingsController.GetAppDisabled();
 
-  NRF_LOG_INFO("Applist: App %i disabled", buttonId);
-  Applications * app = getAppOnButton(buttonId);
-  if (app == nullptr){
-    return;
-  }
-  app->enabled = false;
-  updateButtonMap();
-  enableButtons();
+  currentState ^= (1L << id);
+
+  settingsController.SetAppDisabled(currentState);
 }
 
 void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
   if (obj != btnm1)
     return;
-  Applications * app = getAppOnButton(buttonId);
-  if (app == nullptr){
-    return;
+  uint8_t appId = getAppIdOnButton(buttonId);
+  if (longPressed && !addingApps) {
+    disableApp(appId);
+    updateButtonMap();
+    enableButtons();
+  } else {
+    if (addingApps) {
+      disableApp(appId);
+    } else {
+      Applications* app = &applications[appId];
+      Screen::app->StartApp(app->application, DisplayApp::FullRefreshDirections::Up);
+      running = false;
+    }
   }
-  Screen::app->StartApp(app->application, DisplayApp::FullRefreshDirections::Up);
-  running = false;
+  longPressed = false;
 }

@@ -5,6 +5,7 @@ namespace Pinetime {
     enum class Apps {
       None,
       Launcher,
+      LauncherAddApp,
       Clock,
       SysInfo,
       FirmwareUpdate,
