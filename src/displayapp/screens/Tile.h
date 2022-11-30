@@ -18,7 +18,6 @@ namespace Pinetime {
       public:
         struct Applications {
           const char* icon;
-          bool enabled;
           Pinetime::Applications::Apps application;
         };
 
@@ -35,7 +34,6 @@ namespace Pinetime {
 
         void UpdateScreen();
         void OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId);
-        void OnLongPressed(lv_obj_t* obj, uint32_t buttonId);
 
       private:
         Controllers::DateTime& dateTimeController;
@@ -50,7 +48,6 @@ namespace Pinetime {
 
         const char* btnmMap[8];
         Pinetime::Applications::Apps apps[6];
-        bool enabled[6] {true,true,true,true,true,true};
       };
     }
   }
