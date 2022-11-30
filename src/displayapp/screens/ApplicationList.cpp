@@ -248,6 +248,9 @@ void ApplicationList::disableApp(uint8_t id) {
   if (applications[id].application == Apps::LauncherAddApp){
     return;
   }
+
+  NRF_LOG_INFO("toggling app % i")
+
   uint64_t currentState = settingsController.GetAppDisabled();
 
   currentState ^= (1L << id);
@@ -266,6 +269,8 @@ void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
   } else {
     if (addingApps) {
       disableApp(appId);
+      updateButtonMap();
+      enableButtons();
     } else {
       Applications* app = &applications[appId];
       Screen::app->StartApp(app->application, DisplayApp::FullRefreshDirections::Up);

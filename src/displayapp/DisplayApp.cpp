@@ -317,7 +317,7 @@ void DisplayApp::LoadApp(Apps app, DisplayApp::FullRefreshDirections direction) 
       ReturnApp(Apps::Clock, FullRefreshDirections::Down, TouchEvents::SwipeDown);
       break;
     case Apps::LauncherAddApp:
-      currentScreen = std::make_unique<Screens::ApplicationList>(this, settingsController, batteryController, dateTimeController, motorController, true);
+      currentScreen = std::make_unique<Screens::ApplicationList>(this, settingsController, batteryController, bleController, dateTimeController, motorController, true);
       break;
     case Apps::None:
     case Apps::Clock:

@@ -8,6 +8,7 @@
 #include "components/datetime/DateTimeController.h"
 #include "components/settings/Settings.h"
 #include "components/battery/BatteryController.h"
+#include "displayapp/screens/BatteryIcon.h"
 #include "displayapp/screens/Symbols.h"
 
 
