@@ -42,9 +42,8 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
     bleController {bleController},
     dateTimeController {dateTimeController},
     motorController {motorController},
-    addingApps {addingApps} {
-
-  settingsController.SetAppMenu(0);
+    addingApps {addingApps},
+    pageIndicator(0, 1) {
 
   // Time
   label_time = lv_label_create(lv_scr_act(), nullptr);
@@ -55,35 +54,14 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   batteryIcon.Create(lv_scr_act());
   lv_obj_align(batteryIcon.GetObject(), nullptr, LV_ALIGN_IN_TOP_RIGHT, -8, 0);
 
-  uint8_t numScreens = 2;
   if (!addingApps) {
     page = settingsController.GetAppMenu();
   }
 
-  if (numScreens > 1) {
-    pageIndicatorBasePoints[0].x = LV_HOR_RES - 1;
-    pageIndicatorBasePoints[0].y = 0;
-    pageIndicatorBasePoints[1].x = LV_HOR_RES - 1;
-    pageIndicatorBasePoints[1].y = LV_VER_RES;
-
-    pageIndicatorBase = lv_line_create(lv_scr_act(), nullptr);
-    lv_obj_set_style_local_line_width(pageIndicatorBase, LV_LINE_PART_MAIN, LV_STATE_DEFAULT, 3);
-    lv_obj_set_style_local_line_color(pageIndicatorBase, LV_LINE_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x111111));
-    lv_line_set_points(pageIndicatorBase, pageIndicatorBasePoints, 2);
-
-    const uint16_t indicatorSize = LV_VER_RES / numScreens;
-    const uint16_t indicatorPos = indicatorSize * page;
-
-    pageIndicatorPoints[0].x = LV_HOR_RES - 1;
-    pageIndicatorPoints[0].y = indicatorPos;
-    pageIndicatorPoints[1].x = LV_HOR_RES - 1;
-    pageIndicatorPoints[1].y = indicatorPos + indicatorSize;
-
-    pageIndicator = lv_line_create(lv_scr_act(), nullptr);
-    lv_obj_set_style_local_line_width(pageIndicator, LV_LINE_PART_MAIN, LV_STATE_DEFAULT, 3);
-    lv_obj_set_style_local_line_color(pageIndicator, LV_LINE_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_MAKE(0xb0, 0xb0, 0xb0));
-    lv_line_set_points(pageIndicator, pageIndicatorPoints, 2);
-  }
+  // page indicator
+  pageIndicator.Create();
+  calculatePages();
+  pageIndicator.Update(page, pages);
 
   updateButtonMap();
 
@@ -115,7 +93,7 @@ uint8_t ApplicationList::getStartAppIndex(uint8_t page) {
   uint8_t appIndex = 0;
 
   // TODO: check to not overrun applist
-  while (!(enabled >= page * 6) || (!isShown(appIndex))) {
+  while (appIndex < applications.size() && (!(enabled >= page * 6) || (!isShown(appIndex)))) {
     if (!isShown(appIndex)) {
       appIndex++;
       continue;
@@ -139,6 +117,7 @@ void ApplicationList::updateButtonMap() {
     }
     // we ran out of apps, fill with empty buttons
     if (appIndex >= applications.size()) {
+      NRF_LOG_INFO("filling map %i", btIndex);
       btnmMap[btIndex++] = " ";
       continue;
     }
@@ -157,7 +136,7 @@ void ApplicationList::updateButtonMap() {
 }
 
 void ApplicationList::enableButtons() {
-
+  NRF_LOG_INFO("enableButtons");
   for (uint8_t i = 0; i < 7; i++) {
     lv_btnmatrix_clear_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_DISABLED);
     lv_btnmatrix_set_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_CLICK_TRIG);
@@ -167,13 +146,18 @@ void ApplicationList::enableButtons() {
       if (i > 3) {
         buttonId--;
       }
+      NRF_LOG_INFO("disabling button %i", buttonId);
       lv_btnmatrix_set_btn_ctrl(btnm1, buttonId, LV_BTNMATRIX_CTRL_DISABLED);
     }
   }
 }
 
 void ApplicationList::UpdateScreen() {
-  lv_label_set_text(label_time, dateTimeController.FormattedTime().c_str());
+  if (addingApps) {
+    lv_label_set_text(label_time, "add App");
+  } else {
+    lv_label_set_text(label_time, dateTimeController.FormattedTime().c_str());
+  }
   batteryIcon.SetBatteryPercentage(batteryController.PercentRemaining());
 }
 
@@ -197,9 +181,10 @@ bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
       app->SetFullRefresh(DisplayApp::FullRefreshDirections::Down);
       updateButtonMap();
       enableButtons();
+      pageIndicator.Update(page, pages);
       return true;
     case TouchEvents::SwipeUp:
-      if (page + 1 < 2) {
+      if (page + 1 < pages) {
         page++;
       } else {
         return false;
@@ -210,6 +195,7 @@ bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
       app->SetFullRefresh(DisplayApp::FullRefreshDirections::Up);
       updateButtonMap();
       enableButtons();
+      pageIndicator.Update(page, pages);
       return true;
   }
   // return screens.OnTouchEvent(event);
@@ -244,12 +230,12 @@ void ApplicationList::OnLongHold() {
   motorController.RunForDuration(50);
 }
 
-void ApplicationList::disableApp(uint8_t id) {
-  if (applications[id].application == Apps::LauncherAddApp){
+void ApplicationList::toggleApp(uint8_t id) {
+  if (applications[id].application == Apps::LauncherAddApp) {
     return;
   }
 
-  NRF_LOG_INFO("toggling app % i")
+  NRF_LOG_INFO("toggling app %i", id);
 
   uint64_t currentState = settingsController.GetAppDisabled();
 
@@ -263,12 +249,14 @@ void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
     return;
   uint8_t appId = getAppIdOnButton(buttonId);
   if (longPressed && !addingApps) {
-    disableApp(appId);
+    toggleApp(appId);
+    calculatePages();
     updateButtonMap();
     enableButtons();
   } else {
     if (addingApps) {
-      disableApp(appId);
+      toggleApp(appId);
+      calculatePages();
       updateButtonMap();
       enableButtons();
     } else {
@@ -278,4 +266,29 @@ void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
     }
   }
   longPressed = false;
+}
+
+void ApplicationList::calculatePages() {
+  uint8_t enabledApps = 0;
+  for (uint8_t i = 0; i < applications.size(); i++) {
+    if (isShown(i)) {
+      enabledApps++;
+    }
+  }
+  if (enabledApps == 0) {
+    page = 0;
+    pages = 1;
+    pageIndicator.Update(page, 1);
+    // This does not work, when app is launched without anything to show
+    // app->SetFullRefresh(DisplayApp::FullRefreshDirections::Down);
+    // app->ReturnToPreviousApp();
+    NRF_LOG_INFO("Zero pages");
+    return;
+  }
+  pages = (enabledApps + 5) / 6;
+  if (page >= pages) {
+    page = pages - 1;
+    app->SetFullRefresh(DisplayApp::FullRefreshDirections::Down);
+  }
+  pageIndicator.Update(page, pages);
 }

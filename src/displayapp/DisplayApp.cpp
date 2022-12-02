@@ -129,6 +129,10 @@ void DisplayApp::InitHw() {
   ApplyBrightness();
 }
 
+void DisplayApp::ReturnToPreviousApp() {
+  LoadApp(returnToApp, returnDirection);
+}
+
 void DisplayApp::Refresh() {
   auto LoadPreviousScreen = [this]() {
     LoadApp(returnToApp, returnDirection);
@@ -312,12 +316,22 @@ void DisplayApp::LoadApp(Apps app, DisplayApp::FullRefreshDirections direction) 
 
   switch (app) {
     case Apps::Launcher:
-      currentScreen =
-        std::make_unique<Screens::ApplicationList>(this, settingsController, batteryController, bleController, dateTimeController, motorController);
+      currentScreen = std::make_unique<Screens::ApplicationList>(this,
+                                                                 settingsController,
+                                                                 batteryController,
+                                                                 bleController,
+                                                                 dateTimeController,
+                                                                 motorController);
       ReturnApp(Apps::Clock, FullRefreshDirections::Down, TouchEvents::SwipeDown);
       break;
     case Apps::LauncherAddApp:
-      currentScreen = std::make_unique<Screens::ApplicationList>(this, settingsController, batteryController, bleController, dateTimeController, motorController, true);
+      currentScreen = std::make_unique<Screens::ApplicationList>(this,
+                                                                 settingsController,
+                                                                 batteryController,
+                                                                 bleController,
+                                                                 dateTimeController,
+                                                                 motorController,
+                                                                 true);
       break;
     case Apps::None:
     case Apps::Clock:
@@ -534,8 +548,7 @@ void DisplayApp::Register(Pinetime::System::SystemTask* systemTask) {
 }
 void DisplayApp::ApplyBrightness() {
   auto brightness = settingsController.GetBrightness();
-  if(brightness != Controllers::BrightnessController::Levels::Low &&
-      brightness != Controllers::BrightnessController::Levels::Medium &&
+  if (brightness != Controllers::BrightnessController::Levels::Low && brightness != Controllers::BrightnessController::Levels::Medium &&
       brightness != Controllers::BrightnessController::Levels::High) {
     brightness = Controllers::BrightnessController::Levels::High;
   }

@@ -69,6 +69,8 @@ namespace Pinetime {
 
       void StartApp(Apps app, DisplayApp::FullRefreshDirections direction);
 
+      void ReturnToPreviousApp();
+
       void SetFullRefresh(FullRefreshDirections direction);
 
       void Register(Pinetime::System::SystemTask* systemTask);

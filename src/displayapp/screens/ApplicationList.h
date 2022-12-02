@@ -5,6 +5,7 @@
 #include <array>
 
 #include "displayapp/screens/Screen.h"
+#include "displayapp/widgets/PageIndicator.h"
 #include "components/datetime/DateTimeController.h"
 #include "components/settings/Settings.h"
 #include "components/battery/BatteryController.h"
@@ -43,6 +44,7 @@ namespace Pinetime {
         bool addingApps;
 
         uint8_t page;
+        uint8_t pages;
 
         Controllers::Settings& settingsController;
         Pinetime::Controllers::Battery& batteryController;
@@ -53,13 +55,10 @@ namespace Pinetime {
         lv_task_t* taskUpdate;
 
         lv_obj_t* label_time;
-        lv_point_t pageIndicatorBasePoints[2];
-        lv_point_t pageIndicatorPoints[2];
-        lv_obj_t* pageIndicatorBase;
-        lv_obj_t* pageIndicator;
         lv_obj_t* btnm1;
 
         BatteryIcon batteryIcon;
+        Widgets::PageIndicator pageIndicator;
 
         const char* btnmMap[8];
 
@@ -87,9 +86,11 @@ namespace Pinetime {
 
         uint8_t getAppIdOnButton(uint8_t buttonNr);
 
-        void disableApp(uint8_t id);
+        void toggleApp(uint8_t id);
 
         uint8_t getStartAppIndex(uint8_t page);
+
+        void calculatePages();
       };
     }
   }
