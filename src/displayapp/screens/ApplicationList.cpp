@@ -27,6 +27,12 @@ namespace {
     }
     return;
   }
+
+  void btn_handler(lv_obj_t* obj, lv_event_t event) {
+    ApplicationList::Overlay* screen = static_cast<ApplicationList::Overlay*>(obj->user_data);
+    screen->HandleButtons(obj, event);
+  }
+
 }
 
 ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
@@ -60,10 +66,10 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
 
   // page indicator
   pageIndicator.Create();
-  calculatePages();
+  CalculatePages();
   pageIndicator.Update(page, pages);
 
-  updateButtonMap();
+  UpdateButtonMap();
 
   btnm1 = lv_btnmatrix_create(lv_scr_act(), nullptr);
   lv_btnmatrix_set_map(btnm1, btnmMap);
@@ -78,7 +84,7 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   lv_obj_set_style_local_pad_all(btnm1, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 0);
   lv_obj_set_style_local_pad_inner(btnm1, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 10);
 
-  enableButtons();
+  EnableButtons();
 
   btnm1->user_data = this;
   lv_obj_set_event_cb(btnm1, event_handler);
@@ -88,13 +94,13 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   UpdateScreen();
 }
 
-uint8_t ApplicationList::getStartAppIndex(uint8_t page) {
+uint8_t ApplicationList::GetStartAppIndex(uint8_t page) {
   uint8_t enabled = 0;
   uint8_t appIndex = 0;
 
   // TODO: check to not overrun applist
-  while (appIndex < applications.size() && (!(enabled >= page * 6) || (!isShown(appIndex)))) {
-    if (!isShown(appIndex)) {
+  while (appIndex < applications.size() && (!(enabled >= page * 6) || (!IsShown(appIndex)))) {
+    if (!IsShown(appIndex)) {
       appIndex++;
       continue;
     }
@@ -104,9 +110,9 @@ uint8_t ApplicationList::getStartAppIndex(uint8_t page) {
   return appIndex;
 }
 
-void ApplicationList::updateButtonMap() {
+void ApplicationList::UpdateButtonMap() {
   uint8_t btIndex = 0;
-  uint8_t appIndex = getStartAppIndex(page);
+  uint8_t appIndex = GetStartAppIndex(page);
 
   // need to create 6 buttons + 1 newline =7
   while (btIndex < 7) {
@@ -122,7 +128,7 @@ void ApplicationList::updateButtonMap() {
       continue;
     }
     // Skip disabled or invalid apps
-    if (!isShown(appIndex)) {
+    if (!IsShown(appIndex)) {
       appIndex++;
       continue;
     }
@@ -135,7 +141,7 @@ void ApplicationList::updateButtonMap() {
   btnmMap[btIndex] = "";
 }
 
-void ApplicationList::enableButtons() {
+void ApplicationList::EnableButtons() {
   NRF_LOG_INFO("enableButtons");
   for (uint8_t i = 0; i < 7; i++) {
     lv_btnmatrix_clear_btn_ctrl(btnm1, i, LV_BTNMATRIX_CTRL_DISABLED);
@@ -179,8 +185,8 @@ bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
         settingsController.SetAppMenu(page);
       }
       app->SetFullRefresh(DisplayApp::FullRefreshDirections::Down);
-      updateButtonMap();
-      enableButtons();
+      UpdateButtonMap();
+      EnableButtons();
       pageIndicator.Update(page, pages);
       return true;
     case TouchEvents::SwipeUp:
@@ -193,16 +199,15 @@ bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
         settingsController.SetAppMenu(page);
       }
       app->SetFullRefresh(DisplayApp::FullRefreshDirections::Up);
-      updateButtonMap();
-      enableButtons();
+      UpdateButtonMap();
+      EnableButtons();
       pageIndicator.Update(page, pages);
       return true;
   }
-  // return screens.OnTouchEvent(event);
   return false;
 }
 
-bool ApplicationList::isShown(uint8_t id) const {
+bool ApplicationList::IsShown(uint8_t id) const {
   uint64_t currentState = settingsController.GetAppDisabled();
   bool disabled = (currentState >> id) & 1;
   if (addingApps) {
@@ -211,10 +216,10 @@ bool ApplicationList::isShown(uint8_t id) const {
   return (applications[id].application != Apps::None) && (!disabled);
 }
 
-uint8_t ApplicationList::getAppIdOnButton(uint8_t buttonNr) {
+uint8_t ApplicationList::GetAppIdOnButton(uint8_t buttonNr) {
   uint8_t enabledAppNr = 0;
-  for (uint8_t i = getStartAppIndex(page); i < applications.size(); i++) {
-    if (!isShown(i)) {
+  for (uint8_t i = GetStartAppIndex(page); i < applications.size(); i++) {
+    if (!IsShown(i)) {
       continue;
     }
     if (enabledAppNr == buttonNr) {
@@ -230,7 +235,7 @@ void ApplicationList::OnLongHold() {
   motorController.RunForDuration(50);
 }
 
-void ApplicationList::toggleApp(uint8_t id) {
+void ApplicationList::ToggleApp(uint8_t id) {
   if (applications[id].application == Apps::LauncherAddApp) {
     return;
   }
@@ -247,18 +252,15 @@ void ApplicationList::toggleApp(uint8_t id) {
 void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
   if (obj != btnm1)
     return;
-  uint8_t appId = getAppIdOnButton(buttonId);
+  uint8_t appId = GetAppIdOnButton(buttonId);
   if (longPressed && !addingApps) {
-    toggleApp(appId);
-    calculatePages();
-    updateButtonMap();
-    enableButtons();
+    overlay = std::make_unique<ApplicationList::Overlay>(applications[appId].icon, appId, this);
   } else {
     if (addingApps) {
-      toggleApp(appId);
-      calculatePages();
-      updateButtonMap();
-      enableButtons();
+      ToggleApp(appId);
+      CalculatePages();
+      UpdateButtonMap();
+      EnableButtons();
     } else {
       Applications* app = &applications[appId];
       Screen::app->StartApp(app->application, DisplayApp::FullRefreshDirections::Up);
@@ -268,10 +270,10 @@ void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
   longPressed = false;
 }
 
-void ApplicationList::calculatePages() {
+void ApplicationList::CalculatePages() {
   uint8_t enabledApps = 0;
   for (uint8_t i = 0; i < applications.size(); i++) {
-    if (isShown(i)) {
+    if (IsShown(i)) {
       enabledApps++;
     }
   }
@@ -291,4 +293,53 @@ void ApplicationList::calculatePages() {
     app->SetFullRefresh(DisplayApp::FullRefreshDirections::Down);
   }
   pageIndicator.Update(page, pages);
+}
+
+ApplicationList::Overlay::Overlay(const char* icon, uint8_t appId, ApplicationList* parent) : appId(appId), parent(parent) {
+  btnOverlay = lv_btn_create(lv_scr_act(), nullptr);
+  btnOverlay->user_data = this;
+  lv_obj_set_event_cb(btnOverlay, btn_handler);
+  lv_obj_set_height(btnOverlay, 180);
+  lv_obj_set_width(btnOverlay, 200);
+  lv_obj_align(btnOverlay, lv_scr_act(), LV_ALIGN_CENTER, 0, 0);
+  lv_obj_t* txtMessage = lv_label_create(btnOverlay, nullptr);
+  lv_label_set_text_fmt(txtMessage, "Hide %s?", icon);
+  lv_obj_align(txtMessage, lv_scr_act(), LV_ALIGN_IN_TOP_MID, 0, 4);
+
+  btnYes = lv_btn_create(btnOverlay, nullptr);
+  btnYes->user_data = this;
+  lv_obj_t* btnNo = lv_btn_create(btnOverlay, nullptr);
+  btnNo->user_data = this;
+  lv_obj_set_event_cb(btnYes, btn_handler);
+  lv_obj_set_event_cb(btnNo, btn_handler);
+  lv_obj_set_style_local_bg_color(btnYes, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_GREEN);
+  lv_obj_set_style_local_bg_color(btnNo, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_RED);
+
+  lv_obj_t* txtYes = lv_label_create(btnYes, nullptr);
+  lv_label_set_text_static(txtYes, "Yes");
+  lv_obj_t* txtNo = lv_label_create(btnNo, nullptr);
+  lv_label_set_text_static(txtNo, "No");
+
+  lv_obj_align(btnYes, lv_scr_act(), LV_ALIGN_IN_BOTTOM_LEFT, 0, 0);
+  lv_obj_align(btnNo, lv_scr_act(), LV_ALIGN_IN_BOTTOM_RIGHT, 0, 0);
+}
+
+ApplicationList::Overlay::~Overlay() {
+  NRF_LOG_INFO("No Overlay");
+  lv_obj_del(btnOverlay);
+  btnOverlay = nullptr;
+  btnYes = nullptr;
+}
+
+void ApplicationList::Overlay::HandleButtons(lv_obj_t* obj, lv_event_t event) {
+if (event != LV_EVENT_CLICKED) {
+  return;
+}
+  if (obj == btnYes) {
+    parent->ToggleApp(appId);
+    parent->CalculatePages();
+    parent->UpdateButtonMap();
+    parent->EnableButtons();
+  }
+  delete this;
 }

@@ -12,12 +12,24 @@
 #include "displayapp/screens/BatteryIcon.h"
 #include "displayapp/screens/Symbols.h"
 
-
 namespace Pinetime {
   namespace Applications {
     namespace Screens {
       class ApplicationList : public Screen {
       public:
+        class Overlay {
+        public:
+          Overlay(const char* icon, uint8_t appId, ApplicationList* parent);
+          ~Overlay();
+          void HandleButtons(lv_obj_t* obj, lv_event_t event);
+
+        private:
+          uint8_t appId;
+          ApplicationList* parent;
+          lv_obj_t* btnOverlay = nullptr;
+          lv_obj_t* btnYes = nullptr;
+        };
+
         explicit ApplicationList(DisplayApp* app,
                                  Pinetime::Controllers::Settings& settingsController,
                                  Pinetime::Controllers::Battery& batteryController,
@@ -59,38 +71,37 @@ namespace Pinetime {
 
         BatteryIcon batteryIcon;
         Widgets::PageIndicator pageIndicator;
+        std::unique_ptr<Overlay> overlay = {nullptr};
 
         const char* btnmMap[8];
 
-        //TODO can we leave out the 13?
-        std::array<Applications, 13> applications {{
-          {Symbols::stopWatch, Apps::StopWatch},
-          {Symbols::music, Apps::Music},
-          {Symbols::map, Apps::Navigation},
-          {Symbols::shoe, Apps::Steps},
-          {Symbols::heartBeat, Apps::HeartRate},
-          {Symbols::hourGlass, Apps::Timer},
-          {Symbols::paintbrush, Apps::Paint},
-          {Symbols::paddle, Apps::Paddle},
-          {"2", Apps::Twos},
-          {Symbols::chartLine, Apps::Motion},
-          {Symbols::drum, Apps::Metronome},
-          {Symbols::clock, Apps::Alarm},
-          {"+", Apps::LauncherAddApp}}
-        };
+        // TODO can we leave out the 13?
+        std::array<Applications, 13> applications {{{Symbols::stopWatch, Apps::StopWatch},
+                                                    {Symbols::music, Apps::Music},
+                                                    {Symbols::map, Apps::Navigation},
+                                                    {Symbols::shoe, Apps::Steps},
+                                                    {Symbols::heartBeat, Apps::HeartRate},
+                                                    {Symbols::hourGlass, Apps::Timer},
+                                                    {Symbols::paintbrush, Apps::Paint},
+                                                    {Symbols::paddle, Apps::Paddle},
+                                                    {"2", Apps::Twos},
+                                                    {Symbols::chartLine, Apps::Motion},
+                                                    {Symbols::drum, Apps::Metronome},
+                                                    {Symbols::clock, Apps::Alarm},
+                                                    {"+", Apps::LauncherAddApp}}};
 
-        void updateButtonMap();
-        void enableButtons();
+        void UpdateButtonMap();
+        void EnableButtons();
 
-        bool isShown(uint8_t id) const;
+        bool IsShown(uint8_t id) const;
 
-        uint8_t getAppIdOnButton(uint8_t buttonNr);
+        uint8_t GetAppIdOnButton(uint8_t buttonNr);
 
-        void toggleApp(uint8_t id);
+        void ToggleApp(uint8_t id);
 
-        uint8_t getStartAppIndex(uint8_t page);
+        uint8_t GetStartAppIndex(uint8_t page);
 
-        void calculatePages();
+        void CalculatePages();
       };
     }
   }
