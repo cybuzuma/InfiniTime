@@ -15,6 +15,19 @@
 namespace Pinetime {
   namespace Applications {
     namespace Screens {
+      /**
+       * This class is used to select an app to be started
+       *
+       * It features a context action (long press) to hide
+       * apps.
+       *
+       * To reshow apps, it has a second mode (selected by
+       * addingApps ctor parameter), which only shows hidden
+       * apps and reshows them on click.
+       *
+       * This second mode is dynamically shown as additional app
+       * if any other app is hidden
+       */
       class ApplicationList : public Screen {
       public:
         class Overlay {
@@ -75,33 +88,62 @@ namespace Pinetime {
 
         const char* btnmMap[8];
 
-        // TODO can we leave out the 13?
-        std::array<Applications, 13> applications {{{Symbols::stopWatch, Apps::StopWatch},
-                                                    {Symbols::music, Apps::Music},
-                                                    {Symbols::map, Apps::Navigation},
-                                                    {Symbols::shoe, Apps::Steps},
-                                                    {Symbols::heartBeat, Apps::HeartRate},
-                                                    {Symbols::hourGlass, Apps::Timer},
-                                                    {Symbols::paintbrush, Apps::Paint},
-                                                    {Symbols::paddle, Apps::Paddle},
-                                                    {"2", Apps::Twos},
-                                                    {Symbols::chartLine, Apps::Motion},
-                                                    {Symbols::drum, Apps::Metronome},
-                                                    {Symbols::clock, Apps::Alarm},
-                                                    {"+", Apps::LauncherAddApp}}};
+        static constexpr std::array applications {Applications {Symbols::stopWatch, Apps::StopWatch},
+                                                  Applications {Symbols::music, Apps::Music},
+                                                  Applications {Symbols::map, Apps::Navigation},
+                                                  Applications {Symbols::shoe, Apps::Steps},
+                                                  Applications {Symbols::heartBeat, Apps::HeartRate},
+                                                  Applications {Symbols::hourGlass, Apps::Timer},
+                                                  Applications {Symbols::paintbrush, Apps::Paint},
+                                                  Applications {Symbols::paddle, Apps::Paddle},
+                                                  Applications {"2", Apps::Twos},
+                                                  Applications {Symbols::chartLine, Apps::Motion},
+                                                  Applications {Symbols::drum, Apps::Metronome},
+                                                  Applications {Symbols::clock, Apps::Alarm},
+                                                  Applications {"+", Apps::LauncherAddApp}};
 
+        /**
+         * Updates btnmMap according to current page and enabled apps
+         * This has immediate effect on the buttons, no other action needed
+         */
         void UpdateButtonMap();
+
+        /**
+         * Sets buttons to either enabled or disabled, depending on the label
+         * calculated by UpdateButtonMap()
+         */
         void EnableButtons();
 
+        /**
+         * Returns wether an app is to be shown
+         * is sensitiv to addingApps flag
+         */
         bool IsShown(uint8_t id) const;
 
+        /**
+         * Calculates which app is placed on which button
+         * Follows calculation in UpdateButtonMap() and as such
+         * is resistant to duplicate icons
+         */
         uint8_t GetAppIdOnButton(uint8_t buttonNr);
 
+        /**
+         * toogles the hide flag of an app
+         */
         void ToggleApp(uint8_t id);
 
+        /**
+         * returns the index of the first app to be shown on certain page
+         */
         uint8_t GetStartAppIndex(uint8_t page);
 
+        /**
+         * calculates and sets pages to the number of pages needed to show all enabled apps
+         */
         void CalculatePages();
+
+        void showOverlay(uint8_t appId);
+        void hideOverlay();
       };
     }
   }

@@ -16,7 +16,6 @@ namespace {
     if (event == LV_EVENT_LONG_PRESSED) {
       screen->OnLongHold();
     }
-    // NRF_LOG_INFO("Applist Event %i", event);
     auto* eventDataPtr = (uint32_t*) lv_event_get_data();
     if (eventDataPtr == nullptr) {
       return;
@@ -60,6 +59,7 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   batteryIcon.Create(lv_scr_act());
   lv_obj_align(batteryIcon.GetObject(), nullptr, LV_ALIGN_IN_TOP_RIGHT, -8, 0);
 
+  // Adding apps always starts at page 0
   if (!addingApps) {
     page = settingsController.GetAppMenu();
   }
@@ -69,12 +69,14 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   CalculatePages();
   pageIndicator.Update(page, pages);
 
+  // Prepare the string map for the button matrix
   UpdateButtonMap();
 
+  // vreate the button matrix
   btnm1 = lv_btnmatrix_create(lv_scr_act(), nullptr);
   lv_btnmatrix_set_map(btnm1, btnmMap);
-  lv_obj_set_size(btnm1, LV_HOR_RES - 16, LV_VER_RES - 60);
-  lv_obj_align(btnm1, NULL, LV_ALIGN_CENTER, 0, 10);
+  lv_obj_set_size(btnm1, LV_HOR_RES - 8, LV_VER_RES - 30);
+  lv_obj_align(btnm1, NULL, LV_ALIGN_IN_LEFT_MID, 0, 15);
 
   lv_obj_set_style_local_radius(btnm1, LV_BTNMATRIX_PART_BTN, LV_STATE_DEFAULT, 20);
   lv_obj_set_style_local_bg_opa(btnm1, LV_BTNMATRIX_PART_BTN, LV_STATE_DEFAULT, LV_OPA_50);
@@ -84,6 +86,7 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   lv_obj_set_style_local_pad_all(btnm1, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 0);
   lv_obj_set_style_local_pad_inner(btnm1, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 10);
 
+  // Update button matrix buttons' state
   EnableButtons();
 
   btnm1->user_data = this;
@@ -92,6 +95,12 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   taskUpdate = lv_task_create(lv_update_task, 5000, LV_TASK_PRIO_MID, this);
 
   UpdateScreen();
+}
+
+ApplicationList::~ApplicationList() {
+  lv_task_del(taskUpdate);
+  lv_obj_clean(lv_scr_act());
+  settingsController.SaveSettings();
 }
 
 uint8_t ApplicationList::GetStartAppIndex(uint8_t page) {
@@ -167,12 +176,6 @@ void ApplicationList::UpdateScreen() {
   batteryIcon.SetBatteryPercentage(batteryController.PercentRemaining());
 }
 
-ApplicationList::~ApplicationList() {
-  lv_task_del(taskUpdate);
-  lv_obj_clean(lv_scr_act());
-  settingsController.SaveSettings();
-}
-
 bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
   switch (event) {
     case TouchEvents::SwipeDown:
@@ -209,6 +212,15 @@ bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
 
 bool ApplicationList::IsShown(uint8_t id) const {
   uint64_t currentState = settingsController.GetAppDisabled();
+
+  if (applications[id].application == Apps::LauncherAddApp) {
+    if (addingApps) {
+      return false;
+    } else {
+      return currentState != 0;
+    }
+  }
+  
   bool disabled = (currentState >> id) & 1;
   if (addingApps) {
     disabled = !disabled;
@@ -240,29 +252,49 @@ void ApplicationList::ToggleApp(uint8_t id) {
     return;
   }
 
-  NRF_LOG_INFO("toggling app %i", id);
-
   uint64_t currentState = settingsController.GetAppDisabled();
+
+  //clearing all bits in currentState which do not belong to a regular app to be resistant against changes
+  //all ones
+  uint64_t mask = -1;
+  //clear bits associated with available apps, except addingApps app
+  mask = mask << (applications.size() - 1);
+  // invert, only bits associated with available apps are set
+  mask = ~mask;
+  //apply mask
+  currentState &= mask;
 
   currentState ^= (1L << id);
 
   settingsController.SetAppDisabled(currentState);
+
+  CalculatePages();
+  UpdateButtonMap();
+  EnableButtons();
 }
 
 void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
   if (obj != btnm1)
     return;
+  // if overlay is shown, do not react to touch but hide overlay
+  if (overlay.get() != nullptr) {
+    hideOverlay();
+    return;
+  }
+
   uint8_t appId = GetAppIdOnButton(buttonId);
   if (longPressed && !addingApps) {
-    overlay = std::make_unique<ApplicationList::Overlay>(applications[appId].icon, appId, this);
+    // Adding apps is a special app which can not be hidden
+    if (applications[appId].application == Apps::LauncherAddApp) {
+      longPressed = false;
+      return;
+    }
+    showOverlay(appId);
   } else {
     if (addingApps) {
       ToggleApp(appId);
-      CalculatePages();
-      UpdateButtonMap();
-      EnableButtons();
     } else {
-      Applications* app = &applications[appId];
+      const Applications *app = &applications[appId];
       Screen::app->StartApp(app->application, DisplayApp::FullRefreshDirections::Up);
       running = false;
     }
@@ -301,7 +333,7 @@ ApplicationList::Overlay::Overlay(const char* icon, uint8_t appId, ApplicationLi
   lv_obj_set_event_cb(btnOverlay, btn_handler);
   lv_obj_set_height(btnOverlay, 180);
   lv_obj_set_width(btnOverlay, 200);
-  lv_obj_align(btnOverlay, lv_scr_act(), LV_ALIGN_CENTER, 0, 0);
+  lv_obj_align(btnOverlay, lv_scr_act(), LV_ALIGN_CENTER, 0, 10);
   lv_obj_t* txtMessage = lv_label_create(btnOverlay, nullptr);
   lv_label_set_text_fmt(txtMessage, "Hide %s?", icon);
   lv_obj_align(txtMessage, lv_scr_act(), LV_ALIGN_IN_TOP_MID, 0, 4);
@@ -324,6 +356,14 @@ ApplicationList::Overlay::Overlay(const char* icon, uint8_t appId, ApplicationLi
   lv_obj_align(btnNo, lv_scr_act(), LV_ALIGN_IN_BOTTOM_RIGHT, 0, 0);
 }
 
+void ApplicationList::showOverlay(uint8_t appId) {
+  overlay = std::make_unique<ApplicationList::Overlay>(applications[appId].icon, appId, this);
+}
+
+void ApplicationList::hideOverlay() {
+  overlay.reset(nullptr);
+}
+
 ApplicationList::Overlay::~Overlay() {
   NRF_LOG_INFO("No Overlay");
   lv_obj_del(btnOverlay);
@@ -332,14 +372,12 @@ ApplicationList::Overlay::~Overlay() {
 }
 
 void ApplicationList::Overlay::HandleButtons(lv_obj_t* obj, lv_event_t event) {
-if (event != LV_EVENT_CLICKED) {
-  return;
-}
+  if (event != LV_EVENT_CLICKED) {
+    return;
+  }
   if (obj == btnYes) {
     parent->ToggleApp(appId);
-    parent->CalculatePages();
-    parent->UpdateButtonMap();
-    parent->EnableButtons();
   }
-  delete this;
+  parent->hideOverlay();
 }
+
