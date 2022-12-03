@@ -294,7 +294,7 @@ void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId) {
     if (addingApps) {
       ToggleApp(appId);
     } else {
-      Screen::app->StartApp(applications[appId]->application, DisplayApp::FullRefreshDirections::Up);
+      Screen::app->StartApp(applications[appId].application, DisplayApp::FullRefreshDirections::Up);
       running = false;
     }
   }

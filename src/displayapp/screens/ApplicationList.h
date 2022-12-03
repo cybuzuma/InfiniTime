@@ -88,19 +88,19 @@ namespace Pinetime {
 
         const char* btnmMap[8];
 
-        static constexpr std::array applications {Applications {Symbols::stopWatch, Apps::StopWatch},
-                                                  Applications {Symbols::clock, Apps::Alarm},
-                                                  Applications {Symbols::hourGlass, Apps::Timer},
-                                                  Applications {Symbols::shoe, Apps::Steps},
-                                                  Applications {Symbols::heartBeat, Apps::HeartRate},
-                                                  Applications {Symbols::music, Apps::Music},
-                                                  Applications {Symbols::paintbrush, Apps::Paint},
-                                                  Applications {Symbols::paddle, Apps::Paddle},
-                                                  Applications {"2", Apps::Twos},
-                                                  Applications {Symbols::chartLine, Apps::Motion},
-                                                  Applications {Symbols::drum, Apps::Metronome},
-                                                  Applications {Symbols::map, Apps::Navigation},
-                                                  Applications {"+", Apps::LauncherAddApp}};
+        static constexpr std::array<Applications, 13> applications {{{Symbols::stopWatch, Apps::StopWatch},
+                                                                    {Symbols::clock, Apps::Alarm},
+                                                                    {Symbols::hourGlass, Apps::Timer},
+                                                                    {Symbols::shoe, Apps::Steps},
+                                                                    {Symbols::heartBeat, Apps::HeartRate},
+                                                                    {Symbols::music, Apps::Music},
+                                                                    {Symbols::paintbrush, Apps::Paint},
+                                                                    {Symbols::paddle, Apps::Paddle},
+                                                                    {"2", Apps::Twos},
+                                                                    {Symbols::chartLine, Apps::Motion},
+                                                                    {Symbols::drum, Apps::Metronome},
+                                                                    {Symbols::map, Apps::Navigation},
+                                                                    {"+", Apps::LauncherAddApp}}};
 
         /**
          * Updates btnmMap according to current page and enabled apps
