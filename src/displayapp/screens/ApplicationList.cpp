@@ -5,7 +5,7 @@
 
 using namespace Pinetime::Applications::Screens;
 
-constexpr std::array<Tile::Applications, ApplicationList::applications.size()> ApplicationList::applications;
+constexpr std::array<Applications, ApplicationList::applications.size()> ApplicationList::applications;
 
 namespace {
   void lv_update_task(struct _lv_task_t* task) {
