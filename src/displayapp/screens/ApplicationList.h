@@ -89,17 +89,17 @@ namespace Pinetime {
         const char* btnmMap[8];
 
         static constexpr std::array applications {Applications {Symbols::stopWatch, Apps::StopWatch},
-                                                  Applications {Symbols::music, Apps::Music},
-                                                  Applications {Symbols::map, Apps::Navigation},
+                                                  Applications {Symbols::clock, Apps::Alarm},
+                                                  Applications {Symbols::hourGlass, Apps::Timer},
                                                   Applications {Symbols::shoe, Apps::Steps},
                                                   Applications {Symbols::heartBeat, Apps::HeartRate},
-                                                  Applications {Symbols::hourGlass, Apps::Timer},
+                                                  Applications {Symbols::music, Apps::Music},
                                                   Applications {Symbols::paintbrush, Apps::Paint},
                                                   Applications {Symbols::paddle, Apps::Paddle},
                                                   Applications {"2", Apps::Twos},
                                                   Applications {Symbols::chartLine, Apps::Motion},
                                                   Applications {Symbols::drum, Apps::Metronome},
-                                                  Applications {Symbols::clock, Apps::Alarm},
+                                                  Applications {Symbols::map, Apps::Navigation},
                                                   Applications {"+", Apps::LauncherAddApp}};
 
         /**
