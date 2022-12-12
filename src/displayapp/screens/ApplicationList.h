@@ -1,8 +1,7 @@
 #pragma once
 
-#include <array>
 #include <memory>
-#include <array>
+#include <list>
 
 #include "displayapp/screens/Screen.h"
 #include "displayapp/widgets/PageIndicator.h"
@@ -32,15 +31,22 @@ namespace Pinetime {
       public:
         class Overlay {
         public:
-          Overlay(const char* icon, uint8_t appId, ApplicationList* parent);
+          Overlay(const char* icon, uint8_t appId, lv_color_t color, ApplicationList* parent);
           ~Overlay();
           void HandleButtons(lv_obj_t* obj, lv_event_t event);
 
         private:
           uint8_t appId;
           ApplicationList* parent;
-          lv_obj_t* btnOverlay = nullptr;
-          lv_obj_t* btnYes = nullptr;
+          char positionText[3];
+          lv_obj_t* lvOverlay = nullptr;
+          lv_obj_t* btnColor = nullptr;
+          lv_obj_t* btnContrast = nullptr;
+          lv_obj_t* txtContrast = nullptr;
+          lv_obj_t* btnmMove = nullptr;
+          lv_obj_t* btnHide = nullptr;
+
+          const char* moveMap[4];
         };
 
         explicit ApplicationList(DisplayApp* app,
@@ -59,9 +65,15 @@ namespace Pinetime {
         void OnLongHold();
 
       private:
-        struct Applications {
+        struct ApplicationsStatic {
           const char* icon;
           Pinetime::Applications::Apps application;
+        };
+
+        struct Applications: public ApplicationsStatic {
+          lv_color_t color;
+          bool colorinverted;
+          const uint8_t originalIndex;
         };
 
         bool longPressed {false};
@@ -80,7 +92,8 @@ namespace Pinetime {
         lv_task_t* taskUpdate;
 
         lv_obj_t* label_time;
-        lv_obj_t* btnm1;
+        lv_obj_t* appButtons[6];
+        lv_obj_t* appLabels[6];
 
         BatteryIcon batteryIcon;
         Widgets::PageIndicator pageIndicator;
@@ -88,31 +101,30 @@ namespace Pinetime {
 
         const char* btnmMap[8];
 
-        static constexpr std::array<Applications, 13> applications {{{Symbols::stopWatch, Apps::StopWatch},
-                                                                    {Symbols::clock, Apps::Alarm},
-                                                                    {Symbols::hourGlass, Apps::Timer},
-                                                                    {Symbols::shoe, Apps::Steps},
-                                                                    {Symbols::heartBeat, Apps::HeartRate},
-                                                                    {Symbols::music, Apps::Music},
-                                                                    {Symbols::paintbrush, Apps::Paint},
-                                                                    {Symbols::paddle, Apps::Paddle},
-                                                                    {"2", Apps::Twos},
-                                                                    {Symbols::chartLine, Apps::Motion},
-                                                                    {Symbols::drum, Apps::Metronome},
-                                                                    {Symbols::map, Apps::Navigation},
-                                                                    {"+", Apps::LauncherAddApp}}};
+        std::list<Applications> applications;
+        std::list<Applications> hiddenApplications;
 
-        /**
-         * Updates btnmMap according to current page and enabled apps
-         * This has immediate effect on the buttons, no other action needed
-         */
-        void UpdateButtonMap();
+        static constexpr std::array<lv_color_t, 6> colors {
+          { LV_COLOR_RED, LV_COLOR_GREEN, LV_COLOR_BLUE, LV_COLOR_GRAY, LV_COLOR_CYAN, LV_COLOR_ORANGE }
+        };
 
-        /**
-         * Sets buttons to either enabled or disabled, depending on the label
-         * calculated by UpdateButtonMap()
-         */
-        void EnableButtons();
+        static constexpr std::array<ApplicationsStatic, 13> applicationsStatic {{{Symbols::stopWatch, Apps::StopWatch},
+                                                                           {Symbols::clock, Apps::Alarm},
+                                                                           {Symbols::hourGlass, Apps::Timer},
+                                                                           {Symbols::shoe, Apps::Steps},
+                                                                           {Symbols::heartBeat, Apps::HeartRate},
+                                                                           {Symbols::music, Apps::Music},
+                                                                           {Symbols::paintbrush, Apps::Paint},
+                                                                           {Symbols::paddle, Apps::Paddle},
+                                                                           {"2", Apps::Twos},
+                                                                           {Symbols::chartLine, Apps::Motion},
+                                                                           {Symbols::drum, Apps::Metronome},
+                                                                           {Symbols::map, Apps::Navigation},
+                                                                           {"+", Apps::LauncherAddApp}}};
+
+        void UpdateButtons();
+
+        const std::list<Applications>& getList();
 
         /**
          * Returns wether an app is to be shown
@@ -128,19 +140,25 @@ namespace Pinetime {
         uint8_t GetAppIdOnButton(uint8_t buttonNr);
 
         /**
-         * toogles the hide flag of an app
+         * hide an app
          */
-        void ToggleApp(uint8_t id);
+        void hideApp(uint8_t id);
 
         /**
-         * returns the index of the first app to be shown on certain page
+         * show an app
          */
-        uint8_t GetStartAppIndex(uint8_t page);
+        void showApp(uint8_t id);
 
         /**
          * calculates and sets pages to the number of pages needed to show all enabled apps
          */
         void CalculatePages();
+
+        uint8_t moveForward(uint8_t appId);
+
+        lv_color_t rotateColor(uint8_t appId, lv_color_t currentColor);
+
+        void HandleButton(uint8_t buttonId);
 
         void showOverlay(uint8_t appId);
         void hideOverlay();

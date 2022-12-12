@@ -33,7 +33,6 @@ void PageIndicator::Update(uint8_t nCurrentScreen) {
 }
 
 void PageIndicator::Update(uint8_t nCurrentScreen, uint8_t nScreens) {
-  NRF_LOG_INFO("Page indicator %i, %i", nCurrentScreen, nScreens);
   this->nCurrentScreen = nCurrentScreen;
   this->nScreens = nScreens;
 
