@@ -18,13 +18,8 @@ namespace {
     if (event == LV_EVENT_LONG_PRESSED) {
       screen->OnLongHold();
     }
-    auto* eventDataPtr = (uint32_t*) lv_event_get_data();
-    if (eventDataPtr == nullptr) {
-      return;
-    }
-    uint32_t eventData = *eventDataPtr;
-    if (event == LV_EVENT_VALUE_CHANGED) {
-      screen->OnValueChangedEvent(obj, eventData);
+    if (event == LV_EVENT_CLICKED) {
+      screen->OnClickedEvent(obj, event);
     }
     return;
   }
@@ -79,7 +74,7 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
   uint8_t width = (LV_HOR_RES - 8 - 20) / 3;
   uint8_t height = (LV_VER_RES - 30 - 20) / 2;
 
-  for (uint8_t column = 0; column < 3; column++){
+  for (uint8_t column = 0; column < 3; column++) {
     for (uint8_t row = 0; row < 2; row++) {
       appButtons[row * 3 + column] = lv_btn_create(lv_scr_act(), nullptr);
       appButtons[row * 3 + column]->user_data = this;
@@ -89,7 +84,6 @@ ApplicationList::ApplicationList(Pinetime::Applications::DisplayApp* app,
       appLabels[row * 3 + column] = lv_label_create(appButtons[row * 3 + column], nullptr);
     }
   }
-  
   UpdateButtons();
 
   taskUpdate = lv_task_create(lv_update_task, 5000, LV_TASK_PRIO_MID, this);
@@ -123,7 +117,13 @@ void ApplicationList::UpdateButtons() {
       continue;
     }
     lv_label_set_text_static(appLabels[buttonIndex], app->icon);
-    lv_obj_set_style_local_bg_color(appButtons[buttonIndex], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, app->color);
+    if (app->invertColor) {
+      lv_obj_set_style_local_text_color(appLabels[buttonIndex], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, app->color);
+      lv_obj_set_style_local_bg_color(appButtons[buttonIndex], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_GRAY);
+    } else {
+      lv_obj_set_style_local_text_color(appLabels[buttonIndex], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+      lv_obj_set_style_local_bg_color(appButtons[buttonIndex], LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, app->color);
+    }
     lv_obj_set_hidden(appButtons[buttonIndex], false);
     app++;
   }
@@ -139,6 +139,9 @@ void ApplicationList::UpdateScreen() {
 }
 
 bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
+  if (overlay.get() != nullptr) {
+    return true;
+  }
   switch (event) {
     case TouchEvents::SwipeDown:
       if (page > 0) {
@@ -170,28 +173,6 @@ bool ApplicationList::OnTouchEvent(Pinetime::Applications::TouchEvents event) {
   return false;
 }
 
-bool ApplicationList::IsShown(uint8_t id) const {
-  uint64_t currentState = settingsController.GetAppDisabled();
-
-  if (std::next(applications.begin(), id)->application == Apps::LauncherAddApp) {
-    if (addingApps) {
-      return false;
-    } else {
-      return currentState != 0;
-    }
-  }
-
-  bool disabled = (currentState >> id) & 1;
-  if (addingApps) {
-    disabled = !disabled;
-  }
-  return (std::next(applications.begin(), id)->application != Apps::None) && (!disabled);
-}
-
-uint8_t ApplicationList::GetAppIdOnButton(uint8_t buttonNr) {
-  return page * 6 + buttonNr;
-}
-
 void ApplicationList::OnLongHold() {
   longPressed = true;
   motorController.RunForDuration(50);
@@ -204,7 +185,7 @@ void ApplicationList::hideApp(uint8_t id) {
   auto element = std::next(applications.begin(), id);
   hiddenApplications.splice(hiddenApplications.end(), applications, element);
 
-  //TODO settings
+  // TODO settings
 
   CalculatePages();
   UpdateButtons();
@@ -217,13 +198,13 @@ void ApplicationList::showApp(uint8_t id) {
   auto element = std::next(hiddenApplications.begin(), id);
   applications.splice(applications.end(), hiddenApplications, element);
 
-  //TODO settings
+  // TODO settings
 
   CalculatePages();
   UpdateButtons();
 }
 
-void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, lv_event_t event) {
+void ApplicationList::OnClickedEvent(lv_obj_t* obj, lv_event_t event) {
   // if overlay is shown, do not react to touch but hide overlay
   if (overlay.get() != nullptr) {
     hideOverlay();
@@ -239,7 +220,7 @@ void ApplicationList::OnValueChangedEvent(lv_obj_t* obj, lv_event_t event) {
   }
 }
 
-void ApplicationList::HandleButton(uint8_t buttonId){
+void ApplicationList::HandleButton(uint8_t buttonId) {
   uint8_t appId = buttonId + 6 * page;
   if (longPressed && !addingApps) {
     // Adding apps is a special app which has no context menu
@@ -259,16 +240,27 @@ void ApplicationList::HandleButton(uint8_t buttonId){
   longPressed = false;
 }
 
+void ApplicationList::CalculatePages(uint8_t selectedApp) {
+  uint8_t newpage = selectedApp / 6;
+  if (newpage < page) {
+    app->SetFullRefresh(DisplayApp::FullRefreshDirections::Down);
+  }
+  if (newpage > page) {
+    app->SetFullRefresh(DisplayApp::FullRefreshDirections::Up);
+  }
+  page = newpage;
+  CalculatePages();
+}
 
 void ApplicationList::CalculatePages() {
-  uint8_t enabledApps = getList().size();
-  if (enabledApps == 0) {
+  uint8_t numberOfApps = getList().size();
+  if (numberOfApps == 0) {
     page = 0;
     pages = 1;
     pageIndicator.Update(page, 1);
     return;
   }
-  pages = (enabledApps + 5) / 6;
+  pages = (numberOfApps + 5) / 6;
   if (page >= pages) {
     page = pages - 1;
     app->SetFullRefresh(DisplayApp::FullRefreshDirections::Down);
@@ -287,45 +279,71 @@ uint8_t ApplicationList::moveForward(uint8_t appId) {
     return appId;
   }
   applications.splice(position, applications, element);
-  CalculatePages();
+  appId++;
+  CalculatePages(appId);
   UpdateButtons();
-  return ++appId;
+  return appId;
 }
 
-lv_color_t ApplicationList::rotateColor(uint8_t appId, lv_color_t currentColor) {
+uint8_t ApplicationList::moveBackwards(uint8_t appId) {
+  if (appId == 0) {
+    return 0;
+  }
+  auto element = std::next(applications.begin(), appId);
+  auto position = std::next(element, -1);
+  applications.splice(position, applications, element);
+  appId--;
+  CalculatePages(appId);
+  UpdateButtons();
+  return appId;
+}
+
+lv_color_t ApplicationList::rotateColor(uint8_t appId) {
+  auto appIter = std::next(applications.begin(), appId);
+  lv_color_t currentColor = appIter->color;
+  lv_color_t newColor = *colors.begin();
   for (auto iter = colors.begin(); iter != colors.end(); iter++) {
     if (iter->full == currentColor.full) {
       iter++;
       if (iter == colors.end()) {
-        return *colors.begin();
+        newColor = *colors.begin();
       } else {
-        return *iter;
+        newColor = *iter;
       }
     }
   }
-  return *colors.begin();
+  appIter->color = newColor;
+  UpdateButtons();
+  return newColor;
+}
+
+bool ApplicationList::invertColor(uint8_t appId) {
+  auto appIter = std::next(applications.begin(), appId);
+  appIter->invertColor = !appIter->invertColor;
+  UpdateButtons();
+  return appIter->invertColor;
 }
 
 void ApplicationList::showOverlay(uint8_t appId) {
   auto app = std::next(applications.begin(), appId);
-  overlay = std::make_unique<ApplicationList::Overlay>(app->icon, appId, app->color, this);
+  overlay = std::make_unique<ApplicationList::Overlay>(app->icon, appId, app->color, app->invertColor, this);
 }
 
 void ApplicationList::hideOverlay() {
   overlay.reset(nullptr);
 }
 
-ApplicationList::Overlay::Overlay(const char* icon, uint8_t appId, lv_color_t color, ApplicationList* parent)
+ApplicationList::Overlay::Overlay(const char* icon, uint8_t appId, lv_color_t color, bool invertColors, ApplicationList* parent)
   : appId(appId), parent(parent) {
   lvOverlay = lv_obj_create(lv_scr_act(), nullptr);
   lvOverlay->user_data = this;
 
   lv_obj_set_event_cb(lvOverlay, btn_handler);
-  lv_obj_set_height(lvOverlay, LV_VER_RES - 16);
-  lv_obj_set_width(lvOverlay, LV_HOR_RES - 16);
+  lv_obj_set_height(lvOverlay, LV_VER_RES - 25);
+  lv_obj_set_width(lvOverlay, LV_HOR_RES - 8);
   lv_obj_set_style_local_bg_color(lvOverlay, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_GRAY);
   lv_obj_set_style_local_bg_opa(lvOverlay, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_90);
-  lv_obj_align(lvOverlay, lv_scr_act(), LV_ALIGN_IN_TOP_MID, 0, 16);
+  lv_obj_align(lvOverlay, lv_scr_act(), LV_ALIGN_IN_TOP_MID, 0, 20);
   lv_obj_t* txtMessage = lv_label_create(lvOverlay, nullptr);
   lv_label_set_text_fmt(txtMessage, "%s Menu", icon);
   lv_obj_align(txtMessage, nullptr, LV_ALIGN_IN_TOP_MID, 0, 8);
@@ -344,14 +362,20 @@ ApplicationList::Overlay::Overlay(const char* icon, uint8_t appId, lv_color_t co
   btnContrast = lv_btn_create(lvOverlay, nullptr);
   btnContrast->user_data = this;
   lv_obj_set_event_cb(btnContrast, btn_handler);
-  lv_obj_set_style_local_bg_color(btnContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, color);
   lv_obj_set_height(btnContrast, 50);
   lv_obj_set_width(btnContrast, 50);
   lv_obj_set_style_local_bg_opa(btnContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_OPA_90);
   lv_obj_align(btnContrast, nullptr, LV_ALIGN_IN_BOTTOM_MID, 45, -135);
   txtContrast = lv_label_create(btnContrast, nullptr);
   lv_label_set_text_static(txtContrast, icon);
-  lv_obj_set_style_local_text_color(txtContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_RED);
+
+  lv_obj_set_style_local_bg_color(btnContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
+  lv_obj_set_style_local_text_color(txtContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+
+  if (invertColors) {
+    lv_obj_set_style_local_bg_color(btnContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+    lv_obj_set_style_local_text_color(txtContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
+  }
 
   // Move
   snprintf(positionText, sizeof(positionText), "%i", appId + 1);
@@ -368,7 +392,7 @@ ApplicationList::Overlay::Overlay(const char* icon, uint8_t appId, lv_color_t co
   lv_obj_align(btnmMove, nullptr, LV_ALIGN_IN_BOTTOM_MID, 0, -70);
   lv_obj_set_style_local_bg_opa(btnmMove, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, LV_OPA_0);
   lv_obj_set_style_local_pad_all(btnmMove, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 0);
-  lv_obj_set_style_local_pad_inner(btnmMove, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 10);
+  lv_obj_set_style_local_pad_inner(btnmMove, LV_BTNMATRIX_PART_BG, LV_STATE_DEFAULT, 5);
 
   // Hide
   btnHide = lv_btn_create(lvOverlay, nullptr);
@@ -379,9 +403,7 @@ ApplicationList::Overlay::Overlay(const char* icon, uint8_t appId, lv_color_t co
 
   lv_obj_t* txtHide = lv_label_create(btnHide, nullptr);
   lv_label_set_text_static(txtHide, "Hide");
-  lv_obj_align(btnHide, nullptr, LV_ALIGN_IN_BOTTOM_MID, 0, 0);
-
-  NRF_LOG_INFO("1");
+  lv_obj_align(btnHide, nullptr, LV_ALIGN_IN_BOTTOM_MID, 0, -10);
 }
 
 ApplicationList::Overlay::~Overlay() {
@@ -389,33 +411,50 @@ ApplicationList::Overlay::~Overlay() {
 }
 
 void ApplicationList::Overlay::HandleButtons(lv_obj_t* obj, lv_event_t event) {
-  if (event != LV_EVENT_CLICKED) {
-    return;
-  }
 
-  if (obj == btnColor) {
-    lv_color_t newColor = parent->rotateColor(appId, lv_obj_get_style_bg_color(btnColor, LV_LABEL_PART_MAIN));
+  if (obj == btnColor && event == LV_EVENT_CLICKED) {
+    lv_color_t newColor = parent->rotateColor(appId);
     lv_obj_set_style_local_bg_color(btnColor, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, newColor);
     return;
   }
 
-  if (obj == btnContrast) {
-    lv_color_t color = lv_obj_get_style_bg_color(btnContrast, LV_LABEL_PART_MAIN);
-    lv_obj_set_style_local_bg_color(btnContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_obj_get_style_text_color(txtContrast, LV_LABEL_PART_MAIN));
-    lv_obj_set_style_local_text_color(txtContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, color);
-    //parent->toggleContrast(appId);
+  if (obj == btnContrast && event == LV_EVENT_CLICKED) {
+    bool inverted = parent->invertColor(appId);
+    if (inverted) {
+      lv_obj_set_style_local_bg_color(btnContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+      lv_obj_set_style_local_text_color(txtContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
+    } else {
+      lv_obj_set_style_local_bg_color(btnContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
+      lv_obj_set_style_local_text_color(txtContrast, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+    }
     return;
   }
 
-  if (obj == btnmMove) {
-    appId = parent->moveForward(appId);
+  if (obj == btnmMove && event == LV_EVENT_VALUE_CHANGED) {
+    auto* eventDataPtr = (uint32_t*) lv_event_get_data();
+    if (eventDataPtr == nullptr) {
+      return;
+    }
+    uint32_t buttonId = *eventDataPtr;
+    if (buttonId == 0) {
+      appId = parent->moveBackwards(appId);
+    }
+    if (buttonId == 2) {
+      appId = parent->moveForward(appId);
+    }
     snprintf(positionText, sizeof(positionText), "%i", appId + 1);
     lv_btnmatrix_set_map(btnmMove, moveMap);
     return;
   }
 
-  if (obj == btnHide) {
+  if (obj == btnHide && event == LV_EVENT_CLICKED) {
     parent->hideApp(appId);
+    parent->hideOverlay();
+    return;
   }
-  parent->hideOverlay();
+
+  if (obj == lvOverlay && event == LV_EVENT_CLICKED) {
+    parent->hideOverlay();
+    return;
+  }
 }

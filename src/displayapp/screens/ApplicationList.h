@@ -31,7 +31,7 @@ namespace Pinetime {
       public:
         class Overlay {
         public:
-          Overlay(const char* icon, uint8_t appId, lv_color_t color, ApplicationList* parent);
+          Overlay(const char* icon, uint8_t appId, lv_color_t color, bool invertColors, ApplicationList* parent);
           ~Overlay();
           void HandleButtons(lv_obj_t* obj, lv_event_t event);
 
@@ -61,7 +61,7 @@ namespace Pinetime {
         bool OnTouchEvent(TouchEvents event) override;
 
         void UpdateScreen();
-        void OnValueChangedEvent(lv_obj_t* obj, uint32_t buttonId);
+        void OnClickedEvent(lv_obj_t* obj, lv_event_t event);
         void OnLongHold();
 
       private:
@@ -70,9 +70,9 @@ namespace Pinetime {
           Pinetime::Applications::Apps application;
         };
 
-        struct Applications: public ApplicationsStatic {
+        struct Applications : public ApplicationsStatic {
           lv_color_t color;
-          bool colorinverted;
+          bool invertColor;
           const uint8_t originalIndex;
         };
 
@@ -105,39 +105,25 @@ namespace Pinetime {
         std::list<Applications> hiddenApplications;
 
         static constexpr std::array<lv_color_t, 6> colors {
-          { LV_COLOR_RED, LV_COLOR_GREEN, LV_COLOR_BLUE, LV_COLOR_GRAY, LV_COLOR_CYAN, LV_COLOR_ORANGE }
-        };
+          {LV_COLOR_RED, LV_COLOR_GREEN, LV_COLOR_BLUE, LV_COLOR_GRAY, LV_COLOR_CYAN, LV_COLOR_ORANGE}};
 
         static constexpr std::array<ApplicationsStatic, 13> applicationsStatic {{{Symbols::stopWatch, Apps::StopWatch},
-                                                                           {Symbols::clock, Apps::Alarm},
-                                                                           {Symbols::hourGlass, Apps::Timer},
-                                                                           {Symbols::shoe, Apps::Steps},
-                                                                           {Symbols::heartBeat, Apps::HeartRate},
-                                                                           {Symbols::music, Apps::Music},
-                                                                           {Symbols::paintbrush, Apps::Paint},
-                                                                           {Symbols::paddle, Apps::Paddle},
-                                                                           {"2", Apps::Twos},
-                                                                           {Symbols::chartLine, Apps::Motion},
-                                                                           {Symbols::drum, Apps::Metronome},
-                                                                           {Symbols::map, Apps::Navigation},
-                                                                           {"+", Apps::LauncherAddApp}}};
+                                                                                 {Symbols::clock, Apps::Alarm},
+                                                                                 {Symbols::hourGlass, Apps::Timer},
+                                                                                 {Symbols::shoe, Apps::Steps},
+                                                                                 {Symbols::heartBeat, Apps::HeartRate},
+                                                                                 {Symbols::music, Apps::Music},
+                                                                                 {Symbols::paintbrush, Apps::Paint},
+                                                                                 {Symbols::paddle, Apps::Paddle},
+                                                                                 {"2", Apps::Twos},
+                                                                                 {Symbols::chartLine, Apps::Motion},
+                                                                                 {Symbols::drum, Apps::Metronome},
+                                                                                 {Symbols::map, Apps::Navigation},
+                                                                                 {"+", Apps::LauncherAddApp}}};
 
         void UpdateButtons();
 
         const std::list<Applications>& getList();
-
-        /**
-         * Returns wether an app is to be shown
-         * is sensitiv to addingApps flag
-         */
-        bool IsShown(uint8_t id) const;
-
-        /**
-         * Calculates which app is placed on which button
-         * Follows calculation in UpdateButtonMap() and as such
-         * is resistant to duplicate icons
-         */
-        uint8_t GetAppIdOnButton(uint8_t buttonNr);
 
         /**
          * hide an app
@@ -154,9 +140,14 @@ namespace Pinetime {
          */
         void CalculatePages();
 
-        uint8_t moveForward(uint8_t appId);
+        void CalculatePages(uint8_t selectedApp);
 
-        lv_color_t rotateColor(uint8_t appId, lv_color_t currentColor);
+        uint8_t moveForward(uint8_t appId);
+        uint8_t moveBackwards(uint8_t appId);
+
+        lv_color_t rotateColor(uint8_t appId);
+
+        bool invertColor(uint8_t appId);
 
         void HandleButton(uint8_t buttonId);
 
